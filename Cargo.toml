@@ -9,9 +9,6 @@ repository = "https://github.com/pastjean/actix-web-requestid"
 homepage = "https://github.com/pastjean/actix-web-requestid"
 keywords = ["actix", "actix-web", "web", "middleware", "requestid"]
 
-[badges]
-travis-ci = { repository = "pastjean/actix-web-requestid" }
-
 [dependencies]
 actix-web = "0.7.3"
 rand = "0.5.5"
