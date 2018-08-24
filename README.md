@@ -1,4 +1,6 @@
-# Actix-web-requestid [![Build Status](https://travis-ci.com/pastjean/actix-web-requestid.svg?branch=master)](https://travis-ci.com/pastjean/actix-web-requestid)
+# Actix-web-requestid 
+
+[![Build Status](https://travis-ci.com/pastjean/actix-web-requestid.svg?branch=master)](https://travis-ci.com/pastjean/actix-web-requestid)
 [![codecov](https://codecov.io/gh/pastjean/actix-web-requestid/branch/master/graph/badge.svg)](https://codecov.io/gh/pastjean/actix-web-requestid) 
 [![crates.io](https://meritbadge.herokuapp.com/actix-web-requestid)](https://crates.io/crates/actix-web-requestid)
 [![License](https://img.shields.io/crates/l/actix-web-requestid.svg)](https://github.com/pastjean/actix-web-requestid#license)
