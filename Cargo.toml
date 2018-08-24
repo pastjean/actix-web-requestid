@@ -1,0 +1,8 @@
+[package]
+name = "actix-web-requestid"
+version = "0.1.0"
+authors = ["Pierre-Alexandre St-Jean <pa@stjean.me>"]
+
+[dependencies]
+actix-web = "0.7.3"
+rand = "0.5.5"
