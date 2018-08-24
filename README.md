@@ -21,7 +21,7 @@ And this to your crate root:
 
 ```rust
 extern crate actix_web;
-extern crate actix_web_requesid;
+extern crate actix_web_requestid;
 
 use actix_web::{http, server, App, Path, Responder};
 use actix_web_requestid::RequestIDHeader
