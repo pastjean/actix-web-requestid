@@ -14,7 +14,7 @@ Add this to your Cargo.toml:
 
 ```toml
 [dependencies]
-actix-web-requestid = "0.1.0"
+actix-web-requestid = "0.1.1"
 ```
 
 And this to your crate root:
