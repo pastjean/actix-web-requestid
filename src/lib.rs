@@ -8,7 +8,7 @@ use rand::distributions::Alphanumeric;
 use rand::Rng;
 
 /// The header set by the middleware
-pub const REQUEST_ID_HEADER : &'static str = "request-id";
+pub const REQUEST_ID_HEADER : &str = "request-id";
 
 /// The HTTP Request ID
 /// 
@@ -80,7 +80,7 @@ mod tests {
             }
         }
     }
-
+    
     #[test]
     fn request_id_is_consistent_for_same_request() {
         let req = TestRequest::default().finish();
