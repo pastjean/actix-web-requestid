@@ -1,13 +1,17 @@
 [package]
 name = "actix-web-requestid"
 description = "Request ID middleware for actix-web"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Pierre-Alexandre St-Jean <pa@stjean.me>"]
 license = "MIT/Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/pastjean/actix-web-requestid"
 homepage = "https://github.com/pastjean/actix-web-requestid"
 keywords = ["actix", "actix-web", "web", "middleware", "requestid"]
+
+[badges]
+travis-ci = { repository = "pastjean/actix-web-requestid", branch = "master" }
+codecov = { repository = "pastjean/actix-web-requestid", branch = "master", service = "github" }
 
 [dependencies]
 actix-web = "0.7.3"
