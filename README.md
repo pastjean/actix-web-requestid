@@ -14,7 +14,7 @@ Add this to your Cargo.toml:
 
 ```toml
 [dependencies]
-actix-web-requestid = "0.1.1"
+actix-web-requestid = "0.1.2"
 ```
 
 And this to your crate root:
@@ -26,15 +26,13 @@ extern crate actix_web_requestid;
 use actix_web::{http, server, App, Path, Responder};
 use actix_web_requestid::RequestIDHeader
 
-fn index(info: Path<(u32, String)>) -> impl Responder {
-    format!("Hello {}! id:{}", info.1, info.0)
-}
-
 fn main() {
     server::new(
         || App::new()
             .middleware(RequestIDHeader)
-            .route("/{id}/{name}/index.html", http::Method::GET, index))
+            .resource("/", |r| {
+                r.method(http::Method::GET).f(|_req| "Hello!");
+            }))
         .bind("127.0.0.1:8080").unwrap()
         .run();
 }

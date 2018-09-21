@@ -11,9 +11,10 @@ documentation = "https://docs.rs/actix-web-requestid"
 keywords = ["actix", "actix-web", "web", "middleware", "requestid"]
 
 [badges]
-travis-ci = { repository = "pastjean/actix-web-requestid", branch = "master" }
+# travis badge doesnt work with travis-ci.com yet
+# travis-ci = { repository = "pastjean/actix-web-requestid", branch = "master" }
 codecov = { repository = "pastjean/actix-web-requestid", branch = "master", service = "github" }
 
 [dependencies]
-actix-web = "0.7.3"
+actix-web = "0.7.4"
 rand = "0.5.5"
