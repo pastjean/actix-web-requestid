@@ -8,13 +8,13 @@ use rand::distributions::Alphanumeric;
 use rand::Rng;
 
 /// The header set by the middleware
-pub const REQUEST_ID_HEADER : &str = "request-id";
+pub const REQUEST_ID_HEADER: &str = "request-id";
 
 /// The HTTP Request ID
-/// 
+///
 /// **note:** must contain as String that is valid to put in HTTP Header values
 /// using base62 / base64 is a great way to sanitize the string
-/// 
+///
 /// It can also be extracted from a request and Helper converter to be able to extract the RequestID easily in an handler
 #[derive(Debug, Clone, PartialEq)]
 pub struct RequestID(String);
@@ -40,7 +40,6 @@ impl<S> RequestIDGetter for HttpRequest<S> {
         RequestID(id)
     }
 }
-
 
 impl<S> FromRequest<S> for RequestID {
     type Config = ();
@@ -80,7 +79,7 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     fn request_id_is_consistent_for_same_request() {
         let req = TestRequest::default().finish();
