@@ -22,7 +22,12 @@ addons:
       - binutils-dev
       - libiberty-dev
 
+install:
+  - rustup component add rustfmt-preview
+  - rustup component add clippy-preview
 script:
+  - cargo fmt -- --check
+  - touch ./src/lib.rs && cargo clippy -- -D  warnings
   - cargo build --verbose
   - cargo test --verbose
 
