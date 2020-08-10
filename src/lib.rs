@@ -17,7 +17,7 @@
 //!
 //! fn main() {
 //!     let app = App::new()
-//!         .wrap(RequestIDService::new())
+//!         .wrap(RequestIDService::default())
 //!         .service(web::resource("/index.html").to(index));
 //! }
 //! ```
@@ -85,7 +85,7 @@ where
             .collect::<String>();
         self.extensions_mut().insert(RequestIDItem(id.clone()));
 
-        return id;
+        id
     }
 }
 
@@ -117,13 +117,12 @@ impl FromRequest for RequestID {
 /// use actix_web_requestid::{RequestIDService};
 ///
 /// let app = App::new()
-///     .wrap(RequestIDService::new());
+///     .wrap(RequestIDService::default());
 /// ```
 pub struct RequestIDService;
 
-impl RequestIDService {
-    /// Create new identity service with specified backend.
-    pub fn new() -> Self {
+impl Default for RequestIDService {
+    fn default() -> Self {
         Self {}
     }
 }
@@ -142,7 +141,7 @@ where
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
     fn new_transform(&self, service: S) -> Self::Future {
-        ok(RequestIDServiceMiddleware { service: service })
+        ok(RequestIDServiceMiddleware { service })
     }
 }
 
@@ -214,7 +213,7 @@ mod tests {
     async fn middleware_adds_request_id_in_headers() {
         let mut app = test::init_service(
             App::new()
-                .wrap(RequestIDService::new())
+                .wrap(RequestIDService::default())
                 .service(web::resource("/").to(|| async { HttpResponse::Ok() })),
         )
         .await;
