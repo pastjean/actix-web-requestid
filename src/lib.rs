@@ -1,65 +1,182 @@
+//! Request-id.
+//!
+//! RequestID provides a "request-id" to a http request. This can be
+//! used for tracing, debuging, user error reporting.
+//!
+//! In general, you just insert a *request-id* middleware and initialize it
+//! To access requestID data, [*RequestID*](struct.RequestID.html) extractor
+//!  must be used.
+//!
+//! ```rust
+//! use actix_web::*;
+//! use actix_web_requestid::{RequestID, RequestIDService};
+//!
+//! async fn index(id: RequestID) -> String {
+//!         format!("Welcome! {}", id.get())
+//! }
+//!
+//! let app = App::new()
+//!     .wrap(RequestIDService::default())
+//!     .service(web::resource("/index.html").to(index));
+//! ```
 extern crate actix_web;
+extern crate futures;
 extern crate rand;
 
-use actix_web::http::header::HeaderValue;
-use actix_web::middleware::{Middleware, Response};
-use actix_web::{FromRequest, HttpRequest, HttpResponse, Result};
+use actix_web::dev::{Payload, Service, ServiceRequest, ServiceResponse, Transform};
+use actix_web::http::{HeaderName, HeaderValue};
+use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
+use futures::future::{ok, Future, Ready};
 use rand::distributions::Alphanumeric;
 use rand::Rng;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 /// The header set by the middleware
 pub const REQUEST_ID_HEADER: &str = "request-id";
 
-/// The HTTP Request ID
-///
-/// **note:** must contain as String that is valid to put in HTTP Header values
-/// using base62 / base64 is a great way to sanitize the string
-///
-/// It can also be extracted from a request and Helper converter to be able to extract the RequestID easily in an handler
-#[derive(Debug, Clone, PartialEq)]
-pub struct RequestID(String);
-
-/// Permits retrieving the HttpRequest associated RequestID
-pub trait RequestIDGetter {
-    /// Returns the HttpRequest RequestID, if the HttpRequest currently has none
-    /// it creates one and associates it to the HttpRequest.
-    fn request_id(&self) -> RequestID;
+pub trait RequestIDMessage {
+    fn id(&self) -> String;
 }
 
-impl<S> RequestIDGetter for HttpRequest<S> {
-    fn request_id(&self) -> RequestID {
-        if let Some(req_id) = self.extensions().get::<RequestID>() {
-            return req_id.clone();
+/// The extractor type to obtain your identity from a request.
+///
+/// ```rust
+/// use actix_web::*;
+/// use actix_web_requestid::{RequestID};
+///
+/// async fn index(id: RequestID) -> String {
+///         format!("Welcome! {}", id.get())
+/// }
+/// ```
+#[derive(Clone)]
+pub struct RequestID(HttpRequest);
+
+impl RequestID {
+    pub fn get(&self) -> String {
+        self.id()
+    }
+}
+
+impl RequestIDMessage for RequestID {
+    fn id(&self) -> String {
+        self.0.id()
+    }
+}
+
+#[derive(Clone)]
+
+struct RequestIDItem(String);
+
+impl<T> RequestIDMessage for T
+where
+    T: HttpMessage,
+{
+    fn id(&self) -> String {
+        if let Some(id) = self.extensions().get::<RequestIDItem>() {
+            return id.0.clone();
         }
 
         let id: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
             .take(10)
             .collect::<String>();
-        self.extensions_mut().insert(RequestID(id.clone()));
-        RequestID(id)
+        self.extensions_mut().insert(RequestIDItem(id.clone()));
+
+        id
     }
 }
 
-impl<S> FromRequest<S> for RequestID {
+/// Extractor implementation for RequestID type.
+///
+/// ```rust
+/// use actix_web::*;
+/// use actix_web_requestid::{RequestID};
+///
+/// async fn index(id: RequestID) -> String {
+///         format!("Welcome! {}", id.get())
+/// }
+/// ```
+impl FromRequest for RequestID {
+    type Error = Error;
+    type Future = Ready<Result<RequestID, Error>>;
     type Config = ();
-    type Result = RequestID;
 
     #[inline]
-    fn from_request(req: &HttpRequest<S>, _: &Self::Config) -> Self::Result {
-        req.request_id()
+    fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
+        ok(RequestID(req.clone()))
     }
 }
 
-/// The RequestID Middleware. It sets a `request-id` HTTP header to the HttpResponse
-pub struct RequestIDHeader;
-impl<S> Middleware<S> for RequestIDHeader {
-    fn response(&self, req: &HttpRequest<S>, mut resp: HttpResponse) -> Result<Response> {
-        if let Ok(v) = HeaderValue::from_str(&(req.request_id().0)) {
-            resp.headers_mut().append(REQUEST_ID_HEADER, v);
-        }
+/// Request id middleware
+///
+/// ```rust
+/// use actix_web::*;
+/// use actix_web_requestid::{RequestIDService};
+///
+/// let app = App::new()
+///     .wrap(RequestIDService::default());
+/// ```
+pub struct RequestIDService;
 
-        Ok(Response::Done(resp))
+impl Default for RequestIDService {
+    fn default() -> Self {
+        Self {}
+    }
+}
+
+impl<S, B> Transform<S> for RequestIDService
+where
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Request = ServiceRequest;
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type InitError = ();
+    type Transform = RequestIDServiceMiddleware<S>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ok(RequestIDServiceMiddleware { service })
+    }
+}
+
+#[doc(hidden)]
+pub struct RequestIDServiceMiddleware<S> {
+    service: S,
+}
+
+impl<S, B> Service for RequestIDServiceMiddleware<S>
+where
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
+{
+    type Request = ServiceRequest;
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    #[allow(clippy::type_complexity)]
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
+    }
+
+    fn call(&mut self, req: ServiceRequest) -> Self::Future {
+        let req_id = req.id(); //RequestID(req).id();
+        let fut = self.service.call(req);
+
+        Box::pin(async move {
+            let mut res = fut.await?;
+            let name = HeaderName::from_static(REQUEST_ID_HEADER);
+            let val = HeaderValue::from_str(&req_id).unwrap();
+            res.headers_mut().insert(name, val);
+
+            println!("{:?}", res.headers());
+            Ok(res)
+        })
     }
 }
 
@@ -67,49 +184,47 @@ impl<S> Middleware<S> for RequestIDHeader {
 mod tests {
     use super::*;
     use actix_web::test::TestRequest;
-
-    trait ResponseGetterHelper {
-        fn response(self) -> HttpResponse;
-    }
-    impl ResponseGetterHelper for Response {
-        fn response(self) -> HttpResponse {
-            match self {
-                Response::Done(resp) => resp,
-                _ => panic!(),
-            }
-        }
-    }
+    use actix_web::{http::StatusCode, test, web, App, HttpResponse};
 
     #[test]
     fn request_id_is_consistent_for_same_request() {
-        let req = TestRequest::default().finish();
+        let req = TestRequest::default().to_http_request();
 
-        assert_eq!(req.request_id(), req.request_id());
-        assert_eq!(req.request_id(), RequestID::extract(&req));
+        let req_id = RequestID(req);
+
+        assert_eq!(req_id.id(), req_id.id());
     }
 
     #[test]
     fn request_id_is_new_between_different_requests() {
-        let req1 = TestRequest::default().finish();
-        let req2 = TestRequest::default().finish();
+        let req1 = TestRequest::default().to_http_request();
+        let req2 = TestRequest::default().to_http_request();
 
-        assert!(req1.request_id() != req2.request_id());
-        assert_eq!(req1.request_id(), req1.request_id());
-        assert_eq!(req2.request_id(), req2.request_id());
+        let req_id1 = RequestID(req1);
+        let req_id2 = RequestID(req2);
+
+        assert_eq!(req_id1.id(), req_id1.id());
+        assert_eq!(req_id2.id(), req_id2.id());
+        assert!(req_id1.id() != req_id2.id());
     }
 
-    #[test]
-    fn middleware_adds_request_id_in_headers() {
-        let req = TestRequest::default().finish();
+    #[actix_rt::test]
+    async fn middleware_adds_request_id_in_headers() {
+        let mut app = test::init_service(
+            App::new()
+                .wrap(RequestIDService::default())
+                .service(web::resource("/").to(|| async { HttpResponse::Ok() })),
+        )
+        .await;
 
-        let resp: HttpResponse = HttpResponse::Ok().into();
-        let resp = RequestIDHeader.response(&req, resp).unwrap().response();
+        // Create request object
+        let req = test::TestRequest::with_uri("/").to_request();
 
-        let req_id = req.request_id();
+        // Execute application
+        let resp = test::call_service(&mut app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
 
-        assert_eq!(
-            resp.headers().get(REQUEST_ID_HEADER).unwrap().as_bytes(),
-            req_id.0.as_bytes()
-        );
+        //println!("{:?}",resp.headers().get("request-id").map(|h| h.to_str()));
+        assert!(!resp.headers().get("request-id").unwrap().is_empty());
     }
 }
