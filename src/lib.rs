@@ -6,7 +6,7 @@
 //! In general, you just insert a *request-id* middleware and initialize it
 //! To access requestID data, [*RequestID*](struct.RequestID.html) extractor
 //!  must be used.
-//! 
+//!
 //! ```rust
 //! use actix_web::*;
 //! use actix_web_requestid::{RequestID, RequestIDService};
@@ -42,7 +42,7 @@ pub trait RequestIDMessage {
 }
 
 /// The extractor type to obtain your identity from a request.
-/// 
+///
 /// ```rust
 /// use actix_web::*;
 /// use actix_web_requestid::{RequestID};
@@ -90,7 +90,7 @@ where
 }
 
 /// Extractor implementation for RequestID type.
-/// 
+///
 /// ```rust
 /// use actix_web::*;
 /// use actix_web_requestid::{RequestID};
@@ -111,7 +111,7 @@ impl FromRequest for RequestID {
 }
 
 /// Request id middleware
-/// 
+///
 /// ```rust
 /// use actix_web::*;
 /// use actix_web_requestid::{RequestIDService};
