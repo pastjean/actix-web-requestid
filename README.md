@@ -14,31 +14,27 @@ Add this to your Cargo.toml:
 
 ```toml
 [dependencies]
-actix-web-requestid = "0.1.2"
+actix-web-requestid = "0.2.0"
 ```
 
 And this to your crate root:
 
 ```rust
-extern crate actix_web;
-extern crate actix_web_requestid;
+use actix_web::{web, App, HttpServer, HttpResponse, Error};
+use actix_web_requestid::RequestID
 
-use actix_web::{http, server, App, Path, Responder};
-use actix_web_requestid::RequestIDHeader
-
-fn main() {
-    server::new(
+#[actix_rt::main]
+async fn main() -> std::io::Result<()> {
+    HttpServer::new(
         || App::new()
-            .middleware(RequestIDHeader)
-            .resource("/", |r| {
-                r.method(http::Method::GET).f(|_req| "Hello!");
-            }))
-        .bind("127.0.0.1:8080").unwrap()
-        .run();
+            .wrap(RequestIDService::new())
+            .service(web::resource("/").to(|| HttpResponse::Ok())))
+        .bind("127.0.0.1:59880")?
+        .run()
+        .await
 }
 ```
 
 # License
 
-actix-web-requestid is distributed under the terms of both the MIT license and the
-Apache License (Version 2.0).
+actix-web-requestid is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
