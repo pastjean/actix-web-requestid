@@ -11,7 +11,7 @@ extern crate actix_web;
 extern crate futures;
 extern crate rand;
 
-use actix_web::dev::{Payload, Service, Transform, ServiceRequest, ServiceResponse};
+use actix_web::dev::{Payload, Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::http::{HeaderName, HeaderValue};
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
 use futures::future::{ok, Future, Ready};
@@ -23,7 +23,6 @@ use std::task::{Context, Poll};
 /// The header set by the middleware
 pub const REQUEST_ID_HEADER: &str = "request-id";
 
-
 pub trait RequestIDMessage {
     fn id(&self) -> String;
 }
@@ -33,7 +32,6 @@ impl RequestIDMessage for RequestID {
         self.0.id()
     }
 }
-
 
 #[derive(Clone)]
 pub struct RequestID(HttpRequest);
@@ -127,7 +125,7 @@ where
             let val = HeaderValue::from_str(&req_id).unwrap();
             res.headers_mut().insert(name, val);
 
-            println!("{:?}",res.headers());
+            println!("{:?}", res.headers());
             Ok(res)
         })
     }
@@ -137,7 +135,7 @@ where
 mod tests {
     use super::*;
     use actix_web::test::TestRequest;
-    use actix_web::{test, web, App, HttpResponse, http::StatusCode};
+    use actix_web::{http::StatusCode, test, web, App, HttpResponse};
 
     #[test]
     fn request_id_is_consistent_for_same_request() {
@@ -166,12 +164,13 @@ mod tests {
         let mut app = test::init_service(
             App::new()
                 .wrap(RequestIDService::new())
-                .service(web::resource("/").to(|| async { HttpResponse::Ok() }))
-        ).await;
-    
+                .service(web::resource("/").to(|| async { HttpResponse::Ok() })),
+        )
+        .await;
+
         // Create request object
         let req = test::TestRequest::with_uri("/").to_request();
-    
+
         // Execute application
         let resp = test::call_service(&mut app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
