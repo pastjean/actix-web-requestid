@@ -14,10 +14,9 @@ extern crate rand;
 use actix_web::dev::{Payload, Service, Transform, ServiceRequest, ServiceResponse};
 use actix_web::http::{HeaderName, HeaderValue};
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
-use futures::future::{ok, Ready};
+use futures::future::{ok, Future, Ready};
 use rand::distributions::Alphanumeric;
 use rand::Rng;
-use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
