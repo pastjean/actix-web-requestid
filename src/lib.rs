@@ -15,11 +15,9 @@
 //!         format!("Welcome! {}", id.get())
 //! }
 //!
-//! fn main() {
-//!     let app = App::new()
-//!         .wrap(RequestIDService::default())
-//!         .service(web::resource("/index.html").to(index));
-//! }
+//! let app = App::new()
+//!     .wrap(RequestIDService::default())
+//!     .service(web::resource("/index.html").to(index));
 //! ```
 extern crate actix_web;
 extern crate futures;
@@ -159,6 +157,7 @@ where
     type Request = ServiceRequest;
     type Response = ServiceResponse<B>;
     type Error = Error;
+    #[allow(clippy::type_complexity)]
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
