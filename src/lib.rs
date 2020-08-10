@@ -3,10 +3,24 @@
 //! RequestID provides a "request-id" to a http request. This can be
 //! used for tracing, debuging, user error reporting.
 //!
-//! In general, you insert a *request-id* middleware and initialize it
-//! To access session data, [*RequestID*](struct.RequestID.html) extractor
+//! In general, you just insert a *request-id* middleware and initialize it
+//! To access requestID data, [*RequestID*](struct.RequestID.html) extractor
 //!  must be used.
-
+//! 
+//! ```rust
+//! use actix_web::*;
+//! use actix_web_requestid::{RequestID, RequestIDService};
+//!
+//! async fn index(id: RequestID) -> String {
+//!         format!("Welcome! {}", id.get())
+//! }
+//!
+//! fn main() {
+//!     let app = App::new()
+//!         .wrap(RequestIDService::new())
+//!         .service(web::resource("/index.html").to(index));
+//! }
+//! ```
 extern crate actix_web;
 extern crate futures;
 extern crate rand;
@@ -27,6 +41,25 @@ pub trait RequestIDMessage {
     fn id(&self) -> String;
 }
 
+/// The extractor type to obtain your identity from a request.
+/// 
+/// ```rust
+/// use actix_web::*;
+/// use actix_web_requestid::{RequestID};
+///
+/// async fn index(id: RequestID) -> String {
+///         format!("Welcome! {}", id.get())
+/// }
+/// ```
+#[derive(Clone)]
+pub struct RequestID(HttpRequest);
+
+impl RequestID {
+    pub fn get(&self) -> String {
+        self.id()
+    }
+}
+
 impl RequestIDMessage for RequestID {
     fn id(&self) -> String {
         self.0.id()
@@ -34,7 +67,6 @@ impl RequestIDMessage for RequestID {
 }
 
 #[derive(Clone)]
-pub struct RequestID(HttpRequest);
 
 struct RequestIDItem(String);
 
@@ -57,6 +89,16 @@ where
     }
 }
 
+/// Extractor implementation for RequestID type.
+/// 
+/// ```rust
+/// use actix_web::*;
+/// use actix_web_requestid::{RequestID};
+///
+/// async fn index(id: RequestID) -> String {
+///         format!("Welcome! {}", id.get())
+/// }
+/// ```
 impl FromRequest for RequestID {
     type Error = Error;
     type Future = Ready<Result<RequestID, Error>>;
@@ -68,6 +110,15 @@ impl FromRequest for RequestID {
     }
 }
 
+/// Request id middleware
+/// 
+/// ```rust
+/// use actix_web::*;
+/// use actix_web_requestid::{RequestIDService};
+///
+/// let app = App::new()
+///     .wrap(RequestIDService::new());
+/// ```
 pub struct RequestIDService;
 
 impl RequestIDService {

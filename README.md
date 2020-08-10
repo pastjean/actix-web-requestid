@@ -21,7 +21,7 @@ And this to your crate root:
 
 ```rust
 use actix_web::{web, App, HttpServer, HttpResponse, Error};
-use actix_web_requestid::RequestID
+use actix_web_requestid::{RequestID, RequestIDService};
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
