@@ -174,7 +174,6 @@ where
             let val = HeaderValue::from_str(&req_id).unwrap();
             res.headers_mut().insert(name, val);
 
-            println!("{:?}", res.headers());
             Ok(res)
         })
     }
