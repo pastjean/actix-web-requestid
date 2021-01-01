@@ -21,16 +21,15 @@
 //! ```
 extern crate actix_web;
 extern crate futures;
-extern crate rand;
+extern crate uuid;
 
 use actix_web::dev::{Payload, Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::http::{HeaderName, HeaderValue};
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
 use futures::future::{ok, Future, Ready};
-use rand::distributions::Alphanumeric;
-use rand::Rng;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use uuid::Uuid;
 
 /// The header set by the middleware
 pub const REQUEST_ID_HEADER: &str = "request-id";
@@ -77,10 +76,11 @@ where
             return id.0.clone();
         }
 
-        let id: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .collect::<String>();
+        let id = String::from(
+            Uuid::new_v4()
+                .to_hyphenated()
+                .encode_lower(&mut Uuid::encode_buffer()),
+        );
         self.extensions_mut().insert(RequestIDItem(id.clone()));
 
         id
