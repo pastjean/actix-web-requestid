@@ -85,7 +85,7 @@ where
 
         self.extensions_mut().insert(RequestIDItem(id.clone()));
 
-        return id;
+        id
     }
 }
 
