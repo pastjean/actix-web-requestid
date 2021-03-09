@@ -79,11 +79,13 @@ where
 
         let id: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
+            .map(char::from)
             .take(10)
             .collect::<String>();
+
         self.extensions_mut().insert(RequestIDItem(id.clone()));
 
-        id
+        return id
     }
 }
 
