@@ -215,7 +215,7 @@ mod tests {
         let mut app = test::init_service(
             App::new()
                 .wrap(RequestIDService::default())
-                .service(web::resource("/").to(|| async { HttpResponse::Ok() })),
+                .service(web::resource("/").to(|| async { HttpResponse::Ok().await })),
         )
         .await;
 
@@ -226,7 +226,6 @@ mod tests {
         let resp = test::call_service(&mut app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
-        //println!("{:?}",resp.headers().get("request-id").map(|h| h.to_str()));
         assert!(!resp.headers().get("request-id").unwrap().is_empty());
     }
 }
