@@ -3,11 +3,10 @@
 //! RequestID provides a "request-id" to a http request. This can be
 //! used for tracing, debuging, user error reporting.
 //!
-//! In general, you just insert a *request-id* middleware and initialize it
-//! To access requestID data, [*RequestID*](struct.RequestID.html) extractor
-//!  must be used.
+//! In general, you just insert a `request-id` middleware and initialize it
+//! To access requestID data, [`RequestID`] extractor must be used.
 //!
-//! ```rust
+//! ```
 //! use actix_web::*;
 //! use actix_web_requestid::{RequestID, RequestIDService};
 //!
@@ -19,10 +18,6 @@
 //!     .wrap(RequestIDService::default())
 //!     .service(web::resource("/index.html").to(index));
 //! ```
-extern crate actix_web;
-extern crate futures;
-extern crate rand;
-
 use actix_web::dev::{Payload, Service, ServiceRequest, ServiceResponse, Transform};
 use actix_web::http::{HeaderName, HeaderValue};
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
@@ -41,7 +36,7 @@ pub trait RequestIDMessage {
 
 /// The extractor type to obtain your identity from a request.
 ///
-/// ```rust
+/// ```
 /// use actix_web::*;
 /// use actix_web_requestid::{RequestID};
 ///
@@ -49,7 +44,7 @@ pub trait RequestIDMessage {
 ///         format!("Welcome! {}", id.get())
 /// }
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RequestID(HttpRequest);
 
 impl RequestID {
@@ -64,7 +59,7 @@ impl RequestIDMessage for RequestID {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 
 struct RequestIDItem(String);
 
@@ -77,26 +72,21 @@ where
             return id.0.clone();
         }
 
-        let id: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .map(char::from)
-            .take(10)
-            .collect::<String>();
-
+        let id = rand_length(10);
         self.extensions_mut().insert(RequestIDItem(id.clone()));
 
         id
     }
 }
 
-/// Extractor implementation for RequestID type.
+/// Extractor implementation for [`RequestID`] type.
 ///
-/// ```rust
+/// ```
 /// use actix_web::*;
 /// use actix_web_requestid::{RequestID};
 ///
 /// async fn index(id: RequestID) -> String {
-///         format!("Welcome! {}", id.get())
+///     format!("Welcome! {}", id.get())
 /// }
 /// ```
 impl FromRequest for RequestID {
@@ -112,18 +102,23 @@ impl FromRequest for RequestID {
 
 /// Request id middleware
 ///
-/// ```rust
+/// ```
 /// use actix_web::*;
 /// use actix_web_requestid::{RequestIDService};
 ///
 /// let app = App::new()
 ///     .wrap(RequestIDService::default());
 /// ```
-pub struct RequestIDService;
+#[derive(Debug)]
+pub struct RequestIDService {
+    pub instance_id: String,
+}
 
 impl Default for RequestIDService {
     fn default() -> Self {
-        Self {}
+        Self {
+            instance_id: "".to_string(),
+        }
     }
 }
 
@@ -146,6 +141,7 @@ where
 }
 
 #[doc(hidden)]
+#[derive(Debug)]
 pub struct RequestIDServiceMiddleware<S> {
     service: S,
 }
@@ -167,19 +163,28 @@ where
     }
 
     fn call(&mut self, req: ServiceRequest) -> Self::Future {
-        let req_id = req.id(); //RequestID(req).id();
+        let req_id = req.id();
         let fut = self.service.call(req);
 
         Box::pin(async move {
             let mut res = fut.await?;
-            let name = HeaderName::from_static(REQUEST_ID_HEADER);
-            let val = HeaderValue::from_str(&req_id).unwrap();
-            res.headers_mut().insert(name, val);
 
-            println!("{:?}", res.headers());
+            res.headers_mut().append(
+                HeaderName::from_static(REQUEST_ID_HEADER),
+                HeaderValue::from_str(&req_id).unwrap(),
+            );
+
             Ok(res)
         })
     }
+}
+
+pub fn rand_length(len: usize) -> String {
+    rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .map(char::from)
+        .take(len)
+        .collect::<_>()
 }
 
 #[cfg(test)]
