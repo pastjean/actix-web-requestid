@@ -13,20 +13,20 @@ Add this to your Cargo.toml:
 
 ```toml
 [dependencies]
-actix-web-requestid = "1.1.0"
+actix-web-requestid = "2.0.0-beta.1"
 ```
 
 And this to your crate root:
 
 ```rust
 use actix_web::{web, App, HttpServer, HttpResponse, Error};
-use actix_web_requestid::{RequestID, RequestIDService};
+use actix_web_requestid::{RequestID, RequestIDMiddlware};
 
 #[actix_rt::main]
 async fn main() -> std::io::Result<()> {
     HttpServer::new(
         || App::new()
-            .wrap(RequestIDService::new())
+            .wrap(RequestIDMiddleware::new())
             .service(web::resource("/").to(|| HttpResponse::Ok())))
         .bind("127.0.0.1:59880")?
         .run()
