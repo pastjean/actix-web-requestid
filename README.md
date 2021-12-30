@@ -19,18 +19,31 @@ actix-web-requestid = "2.0.0-beta.1"
 And this to your crate root:
 
 ```rust
-use actix_web::{web, App, HttpServer, HttpResponse, Error};
-use actix_web_requestid::{RequestID, RequestIDMiddlware};
+use actix_web::{get, middleware::Logger, App, HttpRequest, HttpServer, Responder};
+use actix_web_requestid::{RequestID, RequestIdMiddleware};
 
-#[actix_rt::main]
+#[get("/test")]
+async fn test(id: RequestID, req: HttpRequest) -> impl Responder {
+    format!(
+        "RequestID: {}\nHead:{:#?}",
+        &id,
+        req.headers().get("my_request_id")
+    )
+}
+
+#[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(
-        || App::new()
-            .wrap(RequestIDMiddleware::new())
-            .service(web::resource("/").to(|| HttpResponse::Ok())))
-        .bind("127.0.0.1:59880")?
-        .run()
-        .await
+    HttpServer::new(|| {
+        let id_middleware = RequestIdMiddleware::new("my_request_id");
+        // You need to wrap the Logger first and then the RequestIdMiddleware. Otherwise, the log will not record "my_request_id".
+        App::new()
+            .wrap(Logger::new(&id_middleware.log_format()))
+            .wrap(id_middleware)
+            .service(test)
+    })
+    .bind("0.0.0.0:8080")?
+    .run()
+    .await
 }
 ```
 

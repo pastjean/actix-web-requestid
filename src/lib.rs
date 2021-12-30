@@ -10,26 +10,133 @@
 //! It is still useable without the middleware. The first time you try to
 //! extract the id, it will be generated. Then reused along the request.
 //! You can for exemple use that in a Logging or tracing middleware.
+use actix_web::{
+    dev::{Payload, Service, ServiceRequest, ServiceResponse, Transform},
+    http::header::{HeaderName, HeaderValue},
+    Error, FromRequest, HttpMessage, HttpRequest,
+};
+use futures_util::future::{ok, ready, FutureExt, LocalBoxFuture, Ready};
+use log::warn;
 use std::convert::Infallible;
-use std::future::{ready, Future, Ready};
-use std::pin::Pin;
+use std::ops::Deref;
+use std::task::{Context, Poll};
 
-use actix_web::dev::{Payload, Service, ServiceRequest, ServiceResponse, Transform};
-use actix_web::http::{HeaderName, HeaderValue};
-use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
-use rand::distributions::Alphanumeric;
-use rand::Rng;
+pub const DEFAULT_ID_HEAD_NAME: &'static str = "request_id";
 
-pub const REQUEST_ID_HEADER: &str = "request-id";
+#[derive(Debug, Clone)]
+pub struct RequestIdMiddleware {
+    pub head_name: &'static str,
+}
 
+impl Default for RequestIdMiddleware {
+    fn default() -> Self {
+        RequestIdMiddleware {
+            head_name: DEFAULT_ID_HEAD_NAME,
+        }
+    }
+}
+
+impl RequestIdMiddleware {
+    pub fn new(head_name: &'static str) -> Self {
+        Self { head_name }
+    }
+    pub fn log_format(&self) -> String {
+        format!(
+            "[%{{{}}}i] %a %r %s %b %{{Referer}}i %{{User-Agent}}i %T",
+            self.head_name
+        )
+    }
+}
+
+impl<S, B> Transform<S> for RequestIdMiddleware
+where
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+{
+    type Request = ServiceRequest;
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type InitError = ();
+    type Transform = RequestIdService<S>;
+    type Future = Ready<Result<Self::Transform, Self::InitError>>;
+
+    fn new_transform(&self, service: S) -> Self::Future {
+        ok(RequestIdService {
+            service,
+            head_name: self.head_name,
+        })
+    }
+}
+
+pub struct RequestIdService<S> {
+    service: S,
+    head_name: &'static str,
+}
+
+impl<S, B> Service for RequestIdService<S>
+where
+    S: Service<Request = ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+{
+    type Request = ServiceRequest;
+    type Response = ServiceResponse<B>;
+    type Error = Error;
+    type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
+    }
+
+    #[allow(clippy::borrow_interior_mutable_const)]
+    fn call(&mut self, mut req: ServiceRequest) -> Self::Future {
+        let id_head = self.head_name;
+
+        let req_id = req.headers().get(id_head).map(|hv|{
+           match hv.to_str() {
+                Ok(raw_id) => RequestID {inner: raw_id.to_string()},
+                Err(err) => {
+                    let new_id=  RequestID::new();
+                    warn!(
+                        "This request header allows only visible ASCII characters, which will be overwritten. error:{}, id:{}, head:{}",
+                        err,&new_id, id_head
+                    );
+                    new_id
+                }
+            }
+        }).unwrap_or(RequestID::new());
+
+        req.headers_mut().insert(
+            HeaderName::from_static(self.head_name),
+            HeaderValue::from_str(&req_id).unwrap(),
+        );
+        req.extensions_mut().insert(req_id.clone());
+
+        let fut = self.service.call(req);
+
+        async move {
+            let mut res = fut.await?;
+
+            if !res.headers().contains_key(id_head) {
+                res.headers_mut().insert(
+                    HeaderName::from_static(id_head),
+                    HeaderValue::from_str(&req_id).unwrap(),
+                );
+            }
+            Ok(res)
+        }
+        .boxed_local()
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RequestID {
     inner: String,
 }
 
-impl From<RequestID> for String {
-    fn from(r: RequestID) -> Self {
-        r.inner
+impl RequestID {
+    pub fn new() -> Self {
+        Self {
+            inner: uuid::Uuid::new_v4().to_string(),
+        }
     }
 }
 
@@ -39,16 +146,13 @@ impl std::fmt::Display for RequestID {
     }
 }
 
-/// Extractor implementation for [`RequestID`] type.
-///
-/// ```noexec
-/// # use actix_web::*;
-/// # use actix_web_requestid::{RequestID};
-///
-/// async fn index(id: RequestID) -> String {
-///     format!("Welcome! {}", id)
-/// }
-/// ```
+impl Deref for RequestID {
+    type Target = String;
+    fn deref(&self) -> &String {
+        &self.inner
+    }
+}
+
 impl FromRequest for RequestID {
     type Error = Infallible;
     type Future = Ready<Result<RequestID, Infallible>>;
@@ -56,152 +160,63 @@ impl FromRequest for RequestID {
 
     #[inline]
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {
-        ready(Ok(req.request_id()))
-    }
-}
-
-/// Request id middleware
-///
-/// ```
-/// use actix_web::*;
-/// use actix_web_requestid::{RequestIDMiddleware};
-///
-/// let app = App::new()
-///     .wrap(RequestIDMiddleware::default());
-/// ```
-pub struct RequestIDMiddleware {}
-
-impl Default for RequestIDMiddleware {
-    fn default() -> Self {
-        Self {}
-    }
-}
-
-impl<S, B> Transform<S, ServiceRequest> for RequestIDMiddleware
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
-    S::Future: 'static,
-{
-    type Response = ServiceResponse<B>;
-    type Error = Error;
-    type InitError = ();
-    type Transform = RequestIDService<S>;
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        ready(Ok(RequestIDService {
-            wrapped_service: service,
-        }))
-    }
-}
-
-pub struct RequestIDService<S> {
-    wrapped_service: S,
-}
-
-impl<S, Req> Service<ServiceRequest> for RequestIDService<S>
-where
-    S: Service<ServiceRequest, Response = ServiceResponse<Req>, Error = Error>,
-    S::Future: 'static,
-{
-    type Response = ServiceResponse<Req>;
-    type Error = S::Error;
-    #[allow(clippy::type_complexity)]
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
-
-    fn poll_ready(
-        &self,
-        ctx: &mut core::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        self.wrapped_service.poll_ready(ctx)
-    }
-
-    fn call(&self, req: actix_web::dev::ServiceRequest) -> Self::Future {
-        let id = req.request_id().inner;
-        let fut = self.wrapped_service.call(req);
-
-        Box::pin(async move {
-            let mut res = fut.await?;
-
-            res.headers_mut().append(
-                HeaderName::from_static(REQUEST_ID_HEADER),
-                HeaderValue::from_str(&id).unwrap(),
-            );
-
-            Ok(res)
-        })
-    }
-}
-
-pub trait RequestIDMessage {
-    fn request_id(&self) -> RequestID;
-}
-
-impl<T> RequestIDMessage for T
-where
-    T: HttpMessage,
-{
-    fn request_id(&self) -> RequestID {
-        if let Some(id) = self.extensions().get::<RequestID>() {
-            return id.clone();
-        }
-
-        let new_id = RequestID {
-            inner: rand::thread_rng()
-                .sample_iter(&Alphanumeric)
-                .map(char::from)
-                .take(10)
-                .collect::<_>(),
+        let id = match req.extensions().get::<RequestID>() {
+            Some(id) => id.clone(),
+            None => RequestID::new(),
         };
-
-        self.extensions_mut().insert(new_id.clone());
-
-        new_id
+        ready(Ok(id))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use actix_web::test::TestRequest;
     use actix_web::{http::StatusCode, test, web, App, HttpResponse};
 
     #[actix_rt::test]
-    async fn request_id_is_consistent_for_same_request() {
-        let req = TestRequest::default().to_http_request();
-        let id_1 = RequestID::extract(&req).await.unwrap();
-        let id_2 = RequestID::extract(&req).await.unwrap();
+    async fn test_none_head() {
+        let head_name = "my_id";
 
-        assert_eq!(id_1, id_2);
-    }
-
-    #[actix_rt::test]
-    async fn request_id_is_new_between_different_requests() {
-        let req1 = TestRequest::default().to_http_request();
-        let req2 = TestRequest::default().to_http_request();
-
-        let req1_id = RequestID::extract(&req1).await.unwrap();
-        let req2_id = RequestID::extract(&req2).await.unwrap();
-
-        assert!(req1_id != req2_id);
-    }
-
-    #[actix_rt::test]
-    async fn middleware_adds_request_id_in_headers() {
-        let app = test::init_service(
+        let mut app = test::init_service(
             App::new()
-                .wrap(RequestIDMiddleware::default())
-                .service(web::resource("/").to(|| async { HttpResponse::Ok().await })),
+                .wrap(RequestIdMiddleware::new(head_name))
+                .service(web::resource("/").to(
+                    move |id: RequestID, req: HttpRequest| async move {
+                        assert!(!id.is_empty());
+                        assert_eq!(req.headers().get(head_name).unwrap().to_str().unwrap(), *id);
+                        HttpResponse::Ok().await
+                    },
+                )),
         )
         .await;
 
-        // Create request object
         let req = test::TestRequest::with_uri("/").to_request();
 
-        // Execute application
-        let resp = test::call_service(&app, req).await;
+        let resp = test::call_service(&mut app, req).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
-        assert!(!resp.headers().get("request-id").unwrap().is_empty());
+        assert!(!resp.headers().get(head_name).unwrap().is_empty());
+    }
+
+    #[actix_rt::test]
+    async fn test_exist_head() {
+        let value = "123456";
+        let mut app = test::init_service(App::new().wrap(RequestIdMiddleware::default()).service(
+            web::resource("/").to(move |id: RequestID, req: HttpRequest| async move {
+                assert_eq!(*id, value);
+                assert_eq!(req.headers().get(DEFAULT_ID_HEAD_NAME).unwrap(), value);
+                HttpResponse::Ok().await
+            }),
+        ))
+        .await;
+
+        let req = test::TestRequest::with_uri("/")
+            .header(DEFAULT_ID_HEAD_NAME, value)
+            .to_request();
+
+        let resp = test::call_service(&mut app, req).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        assert_eq!(resp.headers().get(DEFAULT_ID_HEAD_NAME).unwrap(), value);
     }
 }
