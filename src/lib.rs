@@ -68,13 +68,8 @@ impl FromRequest for RequestID {
 /// let app = App::new()
 ///     .wrap(RequestIDMiddleware::default());
 /// ```
+#[derive(Default)]
 pub struct RequestIDMiddleware {}
-
-impl Default for RequestIDMiddleware {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 impl<S, B> Transform<S, ServiceRequest> for RequestIDMiddleware
 where
