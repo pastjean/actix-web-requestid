@@ -15,7 +15,7 @@ use std::future::{ready, Future, Ready};
 use std::pin::Pin;
 
 use actix_web::dev::{Payload, Service, ServiceRequest, ServiceResponse, Transform};
-use actix_web::http::{HeaderName, HeaderValue};
+use actix_web::http::header::{HeaderName, HeaderValue};
 use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
 use rand::distributions::Alphanumeric;
 use rand::Rng;
@@ -52,7 +52,6 @@ impl std::fmt::Display for RequestID {
 impl FromRequest for RequestID {
     type Error = Infallible;
     type Future = Ready<Result<RequestID, Infallible>>;
-    type Config = ();
 
     #[inline]
     fn from_request(req: &HttpRequest, _payload: &mut Payload) -> Self::Future {

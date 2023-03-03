@@ -13,7 +13,7 @@ Add this to your Cargo.toml:
 
 ```toml
 [dependencies]
-actix-web-requestid = "2.0.0-beta.1"
+actix-web-requestid = "2.1.0"
 ```
 
 And this to your crate root:
