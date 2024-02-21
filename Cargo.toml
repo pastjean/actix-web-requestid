@@ -15,8 +15,8 @@ edition = "2018"
 codecov = { repository = "pastjean/actix-web-requestid", branch = "master", service = "github" }
 
 [dependencies]
-actix-web = "^4.3.1"
+actix-web = "^4.5.1"
 rand = "^0.8.4"
 
 [dev-dependencies]
-actix-rt = "2.2.0"
+actix-rt = "2.9.0"
